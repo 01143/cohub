@@ -1,4 +1,4 @@
-"""测试 core.skills 的 front-matter 解析与 tags 注入。"""
+"""Test skill front-matter parsing and tag-based injection."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,12 +10,12 @@ from cohub.core import skills as sk_mod
 SKILL_A = """---
 name: stata-style
 tags: [stata, economics]
-when: 写 Stata 代码时
+when: writing Stata code
 ---
 
-# Stata 风格
-- 三线表
-- merge 前 sort
+# Stata Style
+- three-line tables
+- sort before merge
 """
 
 SKILL_B = """---
@@ -23,8 +23,8 @@ name: python-cleanup
 tags: [python]
 ---
 
-# Python 清理
-- 用 utf-8-sig 读 csv
+# Python Cleanup
+- read CSV with utf-8-sig
 """
 
 
@@ -32,8 +32,8 @@ def test_parse_skill_front_matter() -> None:
     s = sk_mod.parse_skill_text(SKILL_A, name_fallback="x")
     assert s.name == "stata-style"
     assert "stata" in s.tags
-    assert s.when.startswith("写 Stata")
-    assert "三线表" in s.body
+    assert s.when.startswith("writing Stata")
+    assert "three-line tables" in s.body
 
 
 def test_parse_skill_without_front_matter() -> None:
@@ -75,6 +75,6 @@ def test_render_skills_block_empty() -> None:
 def test_render_skills_block_has_marker(tmp_path: Path) -> None:
     s = sk_mod.parse_skill_text(SKILL_A)
     rendered = sk_mod.render_skills_block([s])
-    assert "# 适用技能" in rendered
+    assert "# Applicable Skills" in rendered
     assert "stata-style" in rendered
-    assert "三线表" in rendered
+    assert "three-line tables" in rendered

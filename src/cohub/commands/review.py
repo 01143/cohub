@@ -1,12 +1,12 @@
-"""cohub review —— MVP 占位,P1 实现。"""
+"""cohub review - MVP placeholder for a future review workflow."""
 from __future__ import annotations
 
 import click
 
 
 @click.command()
-@click.option("--with", "cli_name", default="codex", help="审查所用 CLI。")
+@click.option("--with", "cli_name", default="codex", help="CLI used for review.")
 def review(cli_name: str) -> None:
-    """[P1] 启动指定 CLI 做只读审查。当前 MVP 未实现。"""
-    click.echo("review 命令在 MVP 阶段未实现,留作 P1。")
-    click.echo("当前推荐:cohub snap 保存进度后,手动启动 codex 并粘贴 git diff。")
+    """[P1] Start a selected CLI for read-only review. Not implemented in MVP."""
+    click.echo("The review command is not implemented in the MVP and is reserved for P1.")
+    click.echo("Recommended workflow: run cohub snap, then manually start Codex and paste git diff.")

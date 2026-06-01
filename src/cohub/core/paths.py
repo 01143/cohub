@@ -1,11 +1,11 @@
-"""路径相关 helper —— ~/.cohub 全局,.cohub/ 项目内。"""
+"""Path helpers for global ~/.cohub and project-local .cohub directories."""
 from __future__ import annotations
 
 from pathlib import Path
 
 
 def home_cohub() -> Path:
-    """~/.cohub 全局目录。"""
+    """Global ~/.cohub directory."""
     return Path.home() / ".cohub"
 
 

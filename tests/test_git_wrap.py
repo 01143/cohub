@@ -1,4 +1,4 @@
-"""测试 git_wrap 的快照编号递增。"""
+"""Test snapshot tag number increments in git_wrap."""
 from __future__ import annotations
 
 import os
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(not _git_available(), reason="git not in PATH")
 
 def _init_repo(p: Path) -> None:
     gw.run_git(p, ["init", "-q"])
-    # 必备:本地 user.email/name
+    # Required local Git identity.
     gw.run_git(p, ["config", "user.email", "test@example.com"])
     gw.run_git(p, ["config", "user.name", "test"])
     (p / "a.txt").write_text("hi", encoding="utf-8")

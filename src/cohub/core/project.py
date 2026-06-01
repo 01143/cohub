@@ -1,4 +1,4 @@
-"""读写 .cohub/ 下的项目状态文件。"""
+"""Read and write project state files under .cohub/."""
 from __future__ import annotations
 
 import re
@@ -59,11 +59,11 @@ def read_state(project_dir: Path) -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
-# -------- active.md (一行一会话) --------
+# -------- active.md (one session per line) --------
 
-# 格式: [<sid>] <cli> | PID <pid> | <启动时间> | <在做什么> | 心跳 <时间>
+# Format: [<sid>] <cli> | PID <pid> | <started_at> | <current_work> | heartbeat <time>
 _ENTRY_RE = re.compile(
-    r"^\[(?P<sid>[^\]]+)\]\s*(?P<cli>\S+)\s*\|\s*PID\s*(?P<pid>\d+)\s*\|\s*(?P<started>[^|]+?)\s*\|\s*(?P<doing>.*?)\s*\|\s*心跳\s*(?P<hb>.+?)\s*$"
+    r"^\[(?P<sid>[^\]]+)\]\s*(?P<cli>\S+)\s*\|\s*PID\s*(?P<pid>\d+)\s*\|\s*(?P<started>[^|]+?)\s*\|\s*(?P<doing>.*?)\s*\|\s*heartbeat\s*(?P<hb>.+?)\s*$"
 )
 
 STALE_AFTER = timedelta(minutes=5)
@@ -89,7 +89,7 @@ class ActiveEntry:
 
 
 def _format_entry(session_id: str, cli: str, pid: int, started: str, doing: str, heartbeat: str) -> str:
-    return f"[{session_id}] {cli} | PID {pid} | {started} | {doing} | 心跳 {heartbeat}"
+    return f"[{session_id}] {cli} | PID {pid} | {started} | {doing} | heartbeat {heartbeat}"
 
 
 def _parse_active_lines(text: str) -> list[ActiveEntry]:
@@ -125,7 +125,7 @@ def read_active_entries(project_dir: Path) -> list[ActiveEntry]:
 def _write_active(project_dir: Path, entries: list[ActiveEntry]) -> None:
     p = paths.active_path(project_dir)
     now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
-    body = f"# 活跃会话({now})\n\n"
+    body = f"# Active Sessions ({now})\n\n"
     body += "\n".join(e.raw for e in entries)
     if entries:
         body += "\n"

@@ -1,8 +1,8 @@
 """Claude Code adapter.
 
-接入方式: `claude --append-system-prompt "<text>"` (官方 flag,已通过 `claude --help` 验证)
-Transcript 位置: ~/.claude/projects/<encoded-cwd>/*.jsonl,JSONL 每行一条事件
-每条 user/assistant 事件里 message.content 可能是 str 或 list[{type:"text", text:...}]
+Integration method: `claude --append-system-prompt "<text>"`.
+Transcript location: ~/.claude/projects/<encoded-cwd>/*.jsonl.
+Each user/assistant event may contain message.content as str or list[{type:"text", text:...}].
 """
 from __future__ import annotations
 
@@ -15,15 +15,14 @@ INJECTION_METHOD = "system_prompt_flag"
 
 
 def _claude_executable() -> str:
-    """返回 claude CLI 可执行名。Windows 下 PATH 中通常是 claude.cmd,直接用 'claude' 即可。"""
+    """Return the Claude CLI executable name."""
     return os.environ.get("COHUB_CLAUDE_BIN", "claude")
 
 
 def build_command(system_prompt: str, project_dir: str) -> list[str]:
-    """构造 `claude --append-system-prompt <prompt>` 启动命令。
+    """Build `claude --append-system-prompt <prompt>` launch command.
 
-    --append-system-prompt 把内容附加到默认 system prompt 之后,适合注入接力简报。
-    若 prompt 为空,仍然启动 claude(不附加)。
+    When the prompt is empty, launch Claude without an appended prompt.
     """
     cmd: list[str] = [_claude_executable()]
     if system_prompt.strip():
@@ -36,26 +35,25 @@ def _projects_root() -> Path:
 
 
 def _encode_cwd(project_dir: str) -> str:
-    """Claude Code 用 cwd 路径派生目录名(把分隔符替换为 '-')。
+    """Derive a likely Claude Code project directory name from cwd.
 
-    例如 C:\\Users\\xxy 在磁盘上是 C--Users-xxy。
-    我们不假设算法稳定,因此 find_latest_transcript 会同时 fallback 到全局扫描 + cwd 字段匹配。
+    The exact algorithm is not assumed stable, so find_latest_transcript also
+    falls back to a global scan and cwd-field matching.
     """
     p = str(Path(project_dir))
-    # 粗略归一化: 替换 ":" "\\" "/" 为 "-"
+    # Rough normalization: replace path separators with hyphens.
     out = p.replace(":", "").replace("\\", "-").replace("/", "-")
-    # 多 - 合并
     while "--" in out and out.count("--") and not out.startswith("--"):
-        # 仅在非开头处不连续替换;实际 Claude Code 似乎保留 "--",所以这里其实不做合并
+        # Claude Code may preserve "--"; keep this conservative.
         break
     return out
 
 
 def _read_cwd_from_jsonl(p: Path) -> str | None:
-    """读 jsonl 中任一条带 cwd 字段的事件,返回该 cwd。"""
+    """Read the first cwd field found in a JSONL transcript."""
     try:
         with p.open("r", encoding="utf-8") as f:
-            for _ in range(50):  # 只看前 50 行
+            for _ in range(50):
                 line = f.readline()
                 if not line:
                     break
@@ -72,12 +70,11 @@ def _read_cwd_from_jsonl(p: Path) -> str | None:
 
 
 def find_latest_transcript(project_dir: str) -> Path | None:
-    """在 ~/.claude/projects/ 下找最新一条 jsonl,要求其 cwd 字段 == project_dir。
+    """Find the newest Claude JSONL transcript for the given project.
 
-    策略:
-      1) 优先扫匹配编码目录名的子目录(常见)。
-      2) 兜底全局扫所有 jsonl,读 cwd 字段过滤。
-    取 mtime 最大者。
+    Strategy:
+      1) scan the likely encoded directory first;
+      2) fall back to scanning all JSONL files and filtering by cwd.
     """
     root = _projects_root()
     if not root.exists():
@@ -92,13 +89,13 @@ def find_latest_transcript(project_dir: str) -> Path | None:
         candidates.extend(direct_dir.glob("*.jsonl"))
 
     if not candidates:
-        # 全局扫
+        # Global scan.
         for sub in root.iterdir():
             if not sub.is_dir():
                 continue
             candidates.extend(sub.glob("*.jsonl"))
 
-    # 按 cwd 字段过滤
+    # Filter by cwd field.
     matching: list[Path] = []
     for p in candidates:
         cwd = _read_cwd_from_jsonl(p)
@@ -106,7 +103,7 @@ def find_latest_transcript(project_dir: str) -> Path | None:
             matching.append(p)
 
     if not matching and candidates and direct_dir.exists():
-        # cwd 读不到,但目录名命中,姑且全收
+        # If cwd cannot be read but the directory matched, keep candidates.
         matching = candidates
 
     if not matching:
@@ -116,10 +113,9 @@ def find_latest_transcript(project_dir: str) -> Path | None:
 
 
 def parse_transcript(path: Path) -> list[dict] | None:
-    """逐行 JSONL,提取 user / assistant 消息为 [{role, content}, ...]。
+    """Extract user/assistant messages from a JSONL transcript.
 
-    message.content 兼容 str 和 list[{type:"text", text}]。
-    无法解析返回 None。
+    message.content may be str or list[{type:"text", text}].
     """
     try:
         out: list[dict] = []
@@ -139,9 +135,9 @@ def parse_transcript(path: Path) -> list[dict] | None:
                 role = msg.get("role") or t
                 content = msg.get("content")
                 if content is None:
-                    # user 事件里 message 有时直接是 {role, content:str}
+                    # Some user events store content directly on the event.
                     content = obj.get("content", "")
-                # 统一成 list[{type:text, text:...}] 或 str → str
+                # Normalize list or string content to a string.
                 if isinstance(content, list):
                     pieces: list[str] = []
                     for c in content:
@@ -152,7 +148,7 @@ def parse_transcript(path: Path) -> list[dict] | None:
                                 name = c.get("name", "tool")
                                 pieces.append(f"[tool_use: {name}]")
                             elif c.get("type") == "tool_result":
-                                # tool_result.content 可能再嵌套
+                                # tool_result.content may be nested.
                                 inner = c.get("content")
                                 if isinstance(inner, list):
                                     for ic in inner:

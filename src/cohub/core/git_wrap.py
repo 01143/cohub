@@ -1,4 +1,4 @@
-"""git 子进程包装,不引入 GitPython。"""
+"""Small Git subprocess wrapper without GitPython."""
 from __future__ import annotations
 
 import re
@@ -11,7 +11,7 @@ class GitError(RuntimeError):
 
 
 def run_git(project_dir: Path, args: list[str], check: bool = True) -> tuple[int, str]:
-    """运行 git,返回 (returncode, combined_output)。"""
+    """Run Git and return (returncode, combined_output)."""
     cmd = ["git"] + args
     proc = subprocess.run(
         cmd,
@@ -24,7 +24,7 @@ def run_git(project_dir: Path, args: list[str], check: bool = True) -> tuple[int
     )
     out = (proc.stdout or "") + (proc.stderr or "")
     if check and proc.returncode != 0:
-        raise GitError(f"{' '.join(cmd)} 失败: {out.strip()}")
+        raise GitError(f"{' '.join(cmd)} failed: {out.strip()}")
     return proc.returncode, out
 
 

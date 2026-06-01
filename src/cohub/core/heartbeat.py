@@ -1,4 +1,4 @@
-"""active.md 心跳线程。"""
+"""Heartbeat thread for active.md."""
 from __future__ import annotations
 
 import random
@@ -10,7 +10,7 @@ from pathlib import Path
 from . import project as proj
 
 
-_HB_INTERVAL = 60  # 秒
+_HB_INTERVAL = 60  # seconds
 
 
 def _now() -> str:
@@ -23,7 +23,7 @@ def new_session_id(cli: str) -> str:
     return f"{cli}-{ts}-{rnd}"
 
 
-def register_session(project_dir: Path, session_id: str, cli: str, pid: int, doing: str = "(刚启动)") -> None:
+def register_session(project_dir: Path, session_id: str, cli: str, pid: int, doing: str = "(just started)") -> None:
     now = _now()
     proj.upsert_active(project_dir, session_id, cli, pid, started=now, doing=doing, heartbeat=now)
 
@@ -67,5 +67,5 @@ class HeartbeatThread(threading.Thread):
             try:
                 heartbeat(self.project_dir, self.session_id)
             except Exception:
-                # 心跳失败不影响主流程
+                # Heartbeat failures should not interrupt the main process.
                 pass

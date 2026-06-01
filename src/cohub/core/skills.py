@@ -1,13 +1,13 @@
-"""技能加载和注入。
+"""Skill loading and injection.
 
-Skill 文件位于 ~/.cohub/skills/<name>.md,带 YAML front-matter:
+Skill files live at ~/.cohub/skills/<name>.md and use YAML front matter:
     ---
     name: ...
     tags: [...]
     when: ...
     ---
-    # 标题
-    内容
+    # Title
+    Body
 """
 from __future__ import annotations
 
@@ -62,15 +62,15 @@ def load_all_skills() -> list[Skill]:
         try:
             out.append(load_skill_file(p))
         except Exception:
-            # 损坏的文件不致命,跳过
+            # Invalid skill files are non-fatal.
             continue
     return out
 
 
 def collect_skills(project_tags: Iterable[str], forced_names: Iterable[str]) -> list[Skill]:
-    """根据 tags 交集 + force 名称收集要注入的 skill。
+    """Collect skills by tag intersection plus forced skill names.
 
-    重复(同名)只保留一次,顺序: forced 优先,然后按 tag 命中。
+    Duplicate names are kept once. Forced skills come first, followed by tag matches.
     """
     all_skills = load_all_skills()
     tag_set = set(project_tags or [])
@@ -79,13 +79,13 @@ def collect_skills(project_tags: Iterable[str], forced_names: Iterable[str]) -> 
     chosen: list[Skill] = []
     seen: set[str] = set()
 
-    # forced 优先
+    # Forced skills first.
     for s in all_skills:
         if s.name in forced_set and s.name not in seen:
             chosen.append(s)
             seen.add(s.name)
 
-    # tag 命中
+    # Tag matches.
     for s in all_skills:
         if s.name in seen:
             continue
@@ -99,11 +99,11 @@ def collect_skills(project_tags: Iterable[str], forced_names: Iterable[str]) -> 
 def render_skills_block(skills: list[Skill]) -> str:
     if not skills:
         return ""
-    parts = ["# 适用技能"]
+    parts = ["# Applicable Skills"]
     for s in skills:
         parts.append(f"\n## {s.name}")
         if s.when:
-            parts.append(f"_适用时机:{s.when}_")
+            parts.append(f"_When to use: {s.when}_")
         parts.append("")
         parts.append(s.body)
     return "\n".join(parts).strip()

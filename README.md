@@ -1,103 +1,90 @@
 # cohub
 
-本地多 CLI Agent 工作流协调工具。让 Claude Code、Codex 等 CLI 通过共享的 `.cohub/` 项目目录协同工作:接力、版本、技能复用、多窗口公告板。
+Local workflow coordination for multiple CLI agents, including Claude Code and Codex. `cohub` lets different CLI agents share project state through a plain `.cohub/` directory so that sessions can hand off work, keep lightweight status, reuse skills, and preserve snapshot history.
 
-- 纯文件 + 进程,无 daemon、无数据库。
-- CLI 升级换 flag 只动 adapter,核心数据不动。
-- Windows / macOS / Linux 都跑得动(只在 Windows 11 + PowerShell 实测)。
+## Why cohub
 
-## 安装
+- File-based coordination: no daemon and no database.
+- Adapter-based CLI integration: CLI-specific launch flags stay isolated from core project state.
+- Cross-platform design: works on Windows, macOS, and Linux; currently tested on Windows 11 with PowerShell.
+- Personal workflow first: designed for practical multi-window agent work without heavyweight orchestration.
+
+## Installation
 
 ```powershell
-# 在仓库根目录
 pip install -e .
 ```
 
-安装后 `cohub` 命令可用。要让接力简报自动生成,设置 Anthropic key:
+After installation, the `cohub` command is available. Automatic handoff summaries use Anthropic when `ANTHROPIC_API_KEY` is set:
 
 ```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."
+$env:ANTHROPIC_API_KEY = "YOUR_ANTHROPIC_API_KEY"
 ```
 
-没有 key 也能用,只是 `cohub start` 退出时不会自动摘要,而是回退到让你手敲一行(可留空)。
+If no key is configured, `cohub` still works and falls back to a short manual handoff note.
 
-## 五分钟上手
+## Quick Start
 
 ```powershell
-# 1. 在任意项目目录初始化
-cd D:\我的论文
+# 1. Initialize cohub in any project
+cd D:\my-project
 cohub init
-#   引导问:项目名、目标、tags(逗号分隔)、languages
-#   生成 .cohub/{handoff,state,active,snapshots}.md + meta.yaml + reviews/
 
-# 2. 启动 Claude Code,自动注入 system prompt
+# 2. Start a supported CLI with project context injected
 cohub start claude
-#   - 读 handoff.md + state.md + 命中 tags 的 ~/.cohub/skills/*.md
-#   - 用 `claude --append-system-prompt` 启动
-#   - 注册到 .cohub/active.md,后台心跳每 60s 更新
-#   - Claude 退出后:从 active.md 移除自己 + 调 Anthropic Haiku 生成 handoff.md
 
-# 3. 查看活跃会话(开多窗口时有用)
+# 3. Check active sessions
 cohub status
 
-# 4. 提交快照(git commit + tag snap-NNN)
-cohub snap "完成第一阶段"
+# 4. Save a semantic snapshot
+cohub snap "finish first milestone"
 
-# 5. 回看历史
-cohub rewind         # 列快照,选一个,默认 worktree 只读检出
+# 5. Review snapshot history
+cohub rewind
 
-# 6. 下次再启动 → 上次的 handoff.md 自动接上
+# 6. Resume later with the previous handoff context
 cohub start claude
 ```
 
-## 七个命令(MVP)
+## Commands
 
-| 命令 | 作用 |
-|------|------|
-| `cohub init` | 在当前目录初始化 `.cohub/`,交互填 meta.yaml |
-| `cohub start <cli>` | 注入 handoff+state+skills 启动 CLI,active.md 注册,退出时自动摘要 |
-| `cohub status` | 显示当前活跃会话(标 stale) |
-| `cohub handoff [--cli claude]` | 手动重跑摘要;找不到 transcript 则提示输入 |
-| `cohub snap "<说明>"` | git add -A && commit && tag snap-NNN |
-| `cohub rewind` | 交互式列快照,worktree 只读或 hard reset |
-| `cohub skill {list|save|edit|use}` | 管理 `~/.cohub/skills/` |
-| `cohub review --with <cli>` | **P1 占位**,MVP 未实现 |
+| Command | Purpose |
+|---|---|
+| `cohub init` | Initialize `.cohub/` in the current project. |
+| `cohub start <cli>` | Start a CLI with handoff, state, and matching skills injected. |
+| `cohub status` | Show active sessions and stale session markers. |
+| `cohub handoff [--cli claude]` | Regenerate or manually write the handoff summary. |
+| `cohub snap "<message>"` | Run `git add`, commit, and create a `snap-NNN` tag. |
+| `cohub rewind` | Browse snapshot history and optionally restore a snapshot. |
+| `cohub skill {list|save|edit|use}` | Manage reusable local skills. |
+| `cohub review --with <cli>` | Placeholder for future review workflow. |
 
-## 技能(Skills)
+## Skills
 
-技能存放于 `~/.cohub/skills/<name>.md`,YAML front-matter 声明 tags:
+Skills are Markdown files stored in `~/.cohub/skills/<name>.md` with YAML front matter:
 
 ```markdown
 ---
-name: stata-style
-tags: [stata, economics]
-when: 写 Stata 代码时
+name: python-cleanup
+tags: [python, refactor]
+when: Use when cleaning or refactoring Python code
 ---
 
-# Stata 风格
-- 一律三线表
-- merge 前 sort
+# Python Cleanup
+
+- Keep changes small and testable.
+- Prefer existing project style.
 ```
 
-`cohub init` 时填的项目 `tags`(在 `.cohub/meta.yaml`)与 skill 的 `tags` 取交集,命中的 skill 自动拼到 system prompt 顶部。
-
-强制注入某 skill(不依赖 tags 命中):
+During `cohub start`, project tags in `.cohub/meta.yaml` are matched against skill tags. Matching skills are injected into the CLI context. A skill can also be forced for a project:
 
 ```powershell
 cohub skill use python-cleanup
-# 写入 .cohub/meta.yaml 的 skills.force 字段
 ```
 
-保存新 skill:
+## Adapter Protocol
 
-```powershell
-cohub skill save my-style --tags python,stata --when "写代码时"
-# 然后在终端粘贴正文,Ctrl+Z+Enter (Windows) 或 Ctrl+D (Unix) 结束
-```
-
-## Adapter 协议
-
-`~/.cohub/adapters/<name>.py`(可选,优先级高于内置)需实现:
+Custom adapters can be placed in `~/.cohub/adapters/<name>.py`. An adapter should expose:
 
 ```python
 NAME = "claude"
@@ -105,44 +92,42 @@ INJECTION_METHOD = "system_prompt_flag"
 
 def build_command(system_prompt: str, project_dir: str) -> list[str]: ...
 def find_latest_transcript(project_dir: str) -> Path | None: ...
-def parse_transcript(path: Path) -> list[dict] | None: ...  # [{role, content}, ...]
+def parse_transcript(path: Path) -> list[dict] | None: ...
 ```
 
-内置 `claude` adapter:
-- 启动:`claude --append-system-prompt "<text>"`
-- transcript:`~/.claude/projects/<encoded-cwd>/*.jsonl`,按 `cwd` 字段匹配,取 mtime 最大者
+Built-in adapters:
 
-`codex` adapter 为 P1 占位。
+- `claude`: launches `claude --append-system-prompt "<text>"` and reads transcripts from `~/.claude/projects/`.
+- `codex`: placeholder adapter for future full support.
 
-## 目录布局
+## Directory Layout
 
-```
-项目目录/
+```text
+project/
   .cohub/
-    handoff.md       上次会话接力简报(自动生成)
-    state.md         项目状态(手动维护)
-    active.md        活跃会话公告板(实时心跳)
-    snapshots.md     快照索引
-    reviews/         审查记录(P1)
-    meta.yaml        项目元数据(tags 等)
+    handoff.md       previous session handoff summary
+    state.md         manually maintained project state
+    active.md        active session board with heartbeats
+    snapshots.md     snapshot index
+    reviews/         future review records
+    meta.yaml        project metadata and skill tags
 
 ~/.cohub/
-  skills/<name>.md   个人技能库
-  adapters/<name>.py 自定义 adapter(覆盖内置)
+  skills/<name>.md   reusable personal skills
+  adapters/<name>.py custom adapter overrides
 ```
 
-## 已知限制 / TODO
+## Current Limitations
 
-- `cohub review` 留作 P1
-- codex adapter 留作 P1
-- 自动技能提取 `skill extract --from-session` 留作 P1
-- transcript watcher 实时更新 `active.md` 的"在做什么"字段留作 P1
-- 当多个 CLI 进程同时写 `active.md` 时无文件锁,极端情况下可能丢一条心跳。SPEC 第 1.4 节说"个人工具,不强锁",这是有意为之。
+- `cohub review` is a planned workflow, not a complete implementation.
+- The Codex adapter is still a placeholder.
+- Automatic skill extraction from sessions is not implemented.
+- Active-session status is intentionally lightweight and does not use strict file locking.
 
-## 测试
+## Tests
 
 ```powershell
 pytest tests/
 ```
 
-覆盖 `core.project`、`core.skills`、`core.summarizer`、`core.git_wrap`、`adapters.claude` 关键路径。
+The test suite covers project state handling, skill loading, summarization fallback, Git wrappers, and Claude/Codex adapter behavior.

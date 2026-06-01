@@ -1,4 +1,4 @@
-"""cohub start <cli> —— 拼接 system prompt 并启动 CLI。"""
+"""cohub start <cli> - build context and launch a CLI."""
 from __future__ import annotations
 
 import os
@@ -28,16 +28,17 @@ def _build_system_prompt(project_dir: Path, meta: dict) -> str:
 
     handoff = proj.read_handoff(project_dir)
     if handoff.strip():
-        parts.append("# 上次会话接力\n\n" + handoff)
+        parts.append("# Previous Session Handoff\n\n" + handoff)
 
     state = proj.read_state(project_dir)
     if state.strip():
-        parts.append("# 项目状态\n\n" + state)
+        parts.append("# Project State\n\n" + state)
 
     parts.append(
-        "# cohub 协调说明\n你正在 cohub 协调环境中工作。"
-        "退出会话时,cohub 会自动生成接力简报。"
-        "重要进展请在对话中明确表达,便于摘要。"
+        "# cohub Coordination Notes\n"
+        "You are working inside a cohub-coordinated environment. "
+        "When the session exits, cohub will generate a handoff summary. "
+        "State important progress explicitly so it can be summarized."
     )
     return "\n\n---\n\n".join(parts)
 
@@ -45,19 +46,18 @@ def _build_system_prompt(project_dir: Path, meta: dict) -> str:
 @click.command()
 @click.argument("cli_name", type=str)
 def start(cli_name: str) -> None:
-    """启动指定 CLI,自动注入 handoff + state + skills 作为 system prompt。"""
+    """Launch a CLI with handoff, state, and skills injected."""
     project_dir = Path.cwd()
     cohub_dir = project_dir / ".cohub"
     if not cohub_dir.exists():
-        click.echo("当前目录没有 .cohub/,请先运行: cohub init")
+        click.echo("No .cohub/ directory found. Run: cohub init")
         sys.exit(1)
 
     meta = proj.read_meta(project_dir)
 
-    # 显示已活跃会话
     actives = proj.read_active_entries(project_dir)
     if actives:
-        click.echo("提示:当前已有活跃会话:")
+        click.echo("Other active sessions:")
         for entry in actives:
             click.echo("  " + entry.raw)
         click.echo()
@@ -65,7 +65,7 @@ def start(cli_name: str) -> None:
     try:
         adapter = load_adapter(cli_name)
     except Exception as e:
-        click.echo(f"无法加载 adapter '{cli_name}': {e}")
+        click.echo(f"Unable to load adapter '{cli_name}': {e}")
         sys.exit(1)
 
     system_prompt = _build_system_prompt(project_dir, meta)
@@ -73,29 +73,29 @@ def start(cli_name: str) -> None:
 
     session_id = new_session_id(cli_name)
     pid = os.getpid()
-    register_session(project_dir, session_id, cli_name, pid, doing="(刚启动)")
+    register_session(project_dir, session_id, cli_name, pid, doing="(just started)")
     hb = HeartbeatThread(project_dir, session_id)
     hb.start()
 
-    click.echo(f"启动 {cli_name},session={session_id}")
+    click.echo(f"Starting {cli_name}, session={session_id}")
     rc = 0
     try:
-        # 直接 inherit stdio,让用户和 CLI 正常交互
+        # Inherit stdio so the user can interact with the CLI normally.
         completed = subprocess.run(cmd, cwd=str(project_dir))
         rc = completed.returncode
     except KeyboardInterrupt:
         rc = 130
     except FileNotFoundError:
-        click.echo(f"找不到可执行文件: {cmd[0]}。请确认 {cli_name} CLI 已安装并在 PATH 中。")
+        click.echo(f"Executable not found: {cmd[0]}. Confirm that {cli_name} is installed and available on PATH.")
         rc = 127
     finally:
         hb.stop()
         unregister_session(project_dir, session_id)
 
-    click.echo(f"{cli_name} 退出 (rc={rc}),开始生成接力简报...")
+    click.echo(f"{cli_name} exited (rc={rc}); generating handoff summary...")
     try:
         summarize_or_prompt(project_dir, adapter)
     except Exception as e:
-        click.echo(f"摘要失败: {e}")
+        click.echo(f"Summary failed: {e}")
 
     sys.exit(rc)

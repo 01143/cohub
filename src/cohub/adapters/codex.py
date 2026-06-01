@@ -1,12 +1,11 @@
-"""Codex CLI adapter(OpenAI codex-cli)。
+"""Codex CLI adapter (OpenAI codex-cli).
 
-实施说明:
-- codex 没有 `--append-system-prompt` 类的 flag。我们把项目上下文
-  (handoff + state + skills 拼成的 system_prompt)作为**初始 user prompt**
-  传入,效果上接近 system prompt。
-- transcript 位置常见为 ~/.codex/sessions/YYYY-MM-DD/<uuid>.jsonl;
-  字段未公开稳定,parse_transcript 做容错解析,失败返回 None 触发 fallback。
-- 项目目录精准匹配(按 cwd 过滤)留作 P1.5,当前返回全局最新 jsonl。
+Implementation notes:
+- Codex does not expose an `--append-system-prompt` style flag. cohub passes
+  the project context as the initial user prompt.
+- Transcript fields are not assumed stable, so parse_transcript is defensive.
+- Exact project-directory matching is deferred; the adapter currently returns
+  the newest global JSONL transcript.
 """
 from __future__ import annotations
 
@@ -18,12 +17,12 @@ INJECTION_METHOD = "initial_prompt"
 
 
 def build_command(system_prompt: str, project_dir: str) -> list[str]:
-    """启动 codex,把 system_prompt 作为初始 prompt 注入。"""
+    """Launch Codex and inject the system_prompt as the initial prompt."""
     if not system_prompt.strip():
         return ["codex", "--cd", project_dir]
     prefix = (
-        "以下是当前项目的上下文(由 cohub 注入,含 handoff + state + skills),"
-        "请在本次会话中遵循:\n\n---\n\n"
+        "The following is the current project context injected by cohub "
+        "(handoff + state + skills). Follow it in this session:\n\n---\n\n"
     )
     return ["codex", "--cd", project_dir, prefix + system_prompt]
 
@@ -35,10 +34,9 @@ _SESSIONS_DIRS = [
 
 
 def find_latest_transcript(project_dir: str) -> Path | None:
-    """在 codex sessions 目录里找最新的 jsonl。
+    """Find the newest JSONL file in Codex session directories.
 
-    返回全局最新一个(按 mtime)。按 cwd 精准过滤留作 P1.5。
-    找不到返回 None。
+    This currently returns the newest global transcript by mtime.
     """
     candidates: list[Path] = []
     for d in _SESSIONS_DIRS:
@@ -50,10 +48,9 @@ def find_latest_transcript(project_dir: str) -> Path | None:
 
 
 def parse_transcript(path: Path) -> list[dict] | None:
-    """解析 codex jsonl 为 [{role, content}, ...]。
+    """Parse Codex JSONL into [{role, content}, ...].
 
-    codex 的 jsonl 字段未公开稳定,尝试常见键。解析失败返回 None
-    (touch fallback,让 summarizer 走手动输入路径)。
+    Codex JSONL fields are not assumed stable, so common keys are tried.
     """
     try:
         events: list[dict] = []

@@ -1,4 +1,4 @@
-"""Pytest 配置:让 src/ 进入 sys.path。"""
+"""Pytest config: add src/ to sys.path."""
 import sys
 from pathlib import Path
 

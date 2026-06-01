@@ -1,4 +1,4 @@
-"""测试 summarizer 的 transcript 文本化和 fallback 路径。"""
+"""Test transcript text conversion and fallback summary paths."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,13 +9,13 @@ from cohub.core import summarizer as sm
 
 def test_transcript_to_text_handles_str_and_list() -> None:
     transcript = [
-        {"role": "user", "content": "你好"},
-        {"role": "assistant", "content": [{"type": "text", "text": "回答"}, {"type": "text", "text": "第二段"}]},
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": [{"type": "text", "text": "answer"}, {"type": "text", "text": "second paragraph"}]},
     ]
     text = sm._transcript_to_text(transcript)
-    assert "你好" in text
-    assert "回答" in text
-    assert "第二段" in text
+    assert "hello" in text
+    assert "answer" in text
+    assert "second paragraph" in text
     assert "user" in text and "assistant" in text
 
 
@@ -35,16 +35,14 @@ class _FakeAdapter:
 
 
 def test_summarize_falls_back_to_user_when_no_transcript(tmp_path: Path, monkeypatch) -> None:
-    # 准备 .cohub 目录
     (tmp_path / ".cohub").mkdir()
 
-    # 没有 transcript → 直接走 fallback → stdin 输入摘要
-    monkeypatch.setattr("sys.stdin", FakeStdin("正在测试 cohub"))
+    monkeypatch.setattr("sys.stdin", FakeStdin("testing cohub"))
     sm.summarize_or_prompt(tmp_path, _FakeAdapter())
 
     handoff = (tmp_path / ".cohub" / "handoff.md").read_text(encoding="utf-8")
-    assert "正在测试 cohub" in handoff
-    assert "# 上次会话摘要" in handoff
+    assert "testing cohub" in handoff
+    assert "# Session Handoff Summary" in handoff
 
 
 class FakeStdin:
@@ -62,15 +60,14 @@ class _FakeAdapterWithTranscript:
         return Path("/tmp/fake.jsonl")
 
     def parse_transcript(self, path: Path):
-        return [{"role": "user", "content": "改 bug"}, {"role": "assistant", "content": "已改"}]
+        return [{"role": "user", "content": "fix bug"}, {"role": "assistant", "content": "fixed"}]
 
 
 def test_summarize_uses_anthropic_when_available(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / ".cohub").mkdir()
 
-    # mock 掉 Anthropic 调用
-    with patch.object(sm, "call_anthropic_summarize", return_value="# 上次会话摘要(claude, X)\n\n## 在做什么\n改 bug\n"):
+    with patch.object(sm, "call_anthropic_summarize", return_value="# Session Handoff Summary (claude, X)\n\n## Current Task\nfix bug\n"):
         sm.summarize_or_prompt(tmp_path, _FakeAdapterWithTranscript())
 
     handoff = (tmp_path / ".cohub" / "handoff.md").read_text(encoding="utf-8")
-    assert "改 bug" in handoff
+    assert "fix bug" in handoff

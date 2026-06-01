@@ -1,4 +1,4 @@
-"""接力简报生成器 —— Anthropic API,带 fallback。"""
+"""Handoff summary generator with Anthropic API and manual fallback."""
 from __future__ import annotations
 
 import os
@@ -12,33 +12,34 @@ import click
 from . import project as proj
 
 
-_SUMMARY_PROMPT = """请阅读以下对话记录,生成接力简报。简报需包含:
-- 在做什么(当前任务)
-- 已完成(具体动作和产出)
-- 卡在哪(未解决的问题)
-- 决策记录(选择了什么,弃了什么,为什么)
-- 下一步建议
+_SUMMARY_PROMPT = """Read the following transcript and write a handoff summary.
+The summary must include:
+- Current task
+- Completed work
+- Blockers
+- Decisions
+- Suggested next steps
 
-输出格式: 严格按以下 markdown 结构,中文:
+Use exactly this Markdown structure in English:
 
-# 上次会话摘要(<CLI>, <时间戳>)
+# Session Handoff Summary (<CLI>, <timestamp>)
 
-## 在做什么
+## Current Task
 ...
 
-## 已完成
+## Completed
 - ...
 
-## 卡在哪
+## Blockers
 - ...
 
-## 决策记录
+## Decisions
 - ...
 
-## 下一步建议
+## Suggested Next Steps
 - ...
 
-要求: 简洁、具体、不要废话。如果某节没有内容,写"无"。
+Be concise and specific. If a section has no content, write "None".
 """
 
 
@@ -48,7 +49,7 @@ def _transcript_to_text(transcript: list[dict]) -> str:
         role = msg.get("role", "?")
         content = msg.get("content", "")
         if isinstance(content, list):
-            # 把 list 拼成字符串(content blocks)
+            # Join content blocks into a string.
             content = "\n".join(
                 (c.get("text") if isinstance(c, dict) else str(c)) or "" for c in content
             )
@@ -57,7 +58,7 @@ def _transcript_to_text(transcript: list[dict]) -> str:
 
 
 def call_anthropic_summarize(transcript_text: str) -> str | None:
-    """成功返回 markdown,失败返回 None。"""
+    """Return Markdown on success, otherwise None."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         return None
@@ -68,7 +69,7 @@ def call_anthropic_summarize(transcript_text: str) -> str | None:
 
     try:
         client = anthropic.Anthropic(api_key=api_key)
-        # 截断超长 transcript,避免 token 爆炸
+        # Keep very long transcripts bounded.
         if len(transcript_text) > 80000:
             transcript_text = transcript_text[-80000:]
         resp = client.messages.create(
@@ -77,11 +78,11 @@ def call_anthropic_summarize(transcript_text: str) -> str | None:
             messages=[
                 {
                     "role": "user",
-                    "content": _SUMMARY_PROMPT + "\n\n--- 对话记录 ---\n\n" + transcript_text,
+                    "content": _SUMMARY_PROMPT + "\n\n--- Transcript ---\n\n" + transcript_text,
                 }
             ],
         )
-        # resp.content 是 list[ContentBlock]
+        # resp.content is a list of ContentBlock objects.
         chunks = []
         for block in resp.content:
             text = getattr(block, "text", None)
@@ -94,26 +95,26 @@ def call_anthropic_summarize(transcript_text: str) -> str | None:
 
 
 def _fallback_prompt_user(cli_name: str) -> str:
-    """让用户手动输入摘要(可留空)。"""
-    click.echo("无法自动摘要,请简要描述本次会话(可留空,Ctrl+Z+Enter 结束):")
+    """Ask the user to manually enter a summary."""
+    click.echo("Automatic summary is unavailable. Briefly describe this session (optional; Ctrl+Z+Enter to finish on Windows):")
     try:
         body = sys.stdin.read().strip()
     except Exception:
         body = ""
     ts = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
-    body = body or "无"
+    body = body or "None"
     return (
-        f"# 上次会话摘要({cli_name}, {ts})\n\n"
-        f"## 在做什么\n{body}\n\n"
-        "## 已完成\n无\n\n"
-        "## 卡在哪\n无\n\n"
-        "## 决策记录\n无\n\n"
-        "## 下一步建议\n无\n"
+        f"# Session Handoff Summary ({cli_name}, {ts})\n\n"
+        f"## Current Task\n{body}\n\n"
+        "## Completed\nNone\n\n"
+        "## Blockers\nNone\n\n"
+        "## Decisions\nNone\n\n"
+        "## Suggested Next Steps\nNone\n"
     )
 
 
 def summarize_or_prompt(project_dir: Path, adapter: Any) -> None:
-    """尝试自动摘要,失败则提示用户手动输入。结果写入 handoff.md。"""
+    """Attempt automatic summary, then fall back to manual input."""
     cli_name = getattr(adapter, "NAME", "unknown")
     transcript_path = None
     transcript: list[dict] | None = None
@@ -134,8 +135,8 @@ def summarize_or_prompt(project_dir: Path, adapter: Any) -> None:
         summary_md = call_anthropic_summarize(text)
 
     if not summary_md:
-        click.echo("(自动摘要不可用,降级为手动输入)")
+        click.echo("(automatic summary unavailable; falling back to manual input)")
         summary_md = _fallback_prompt_user(cli_name)
 
     proj.write_handoff(project_dir, summary_md)
-    click.echo(f"handoff.md 已更新 ({len(summary_md)} 字符)")
+    click.echo(f"handoff.md updated ({len(summary_md)} characters)")

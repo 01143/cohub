@@ -1,4 +1,4 @@
-"""cohub skill <subcommand> —— 技能库管理。"""
+"""cohub skill <subcommand> - skill library management."""
 from __future__ import annotations
 
 import os
@@ -15,17 +15,17 @@ from ..core import project as proj
 
 @click.group()
 def skill() -> None:
-    """管理 ~/.cohub/skills/ 下的个人技能库。"""
+    """Manage the personal skill library under ~/.cohub/skills/."""
 
 
 @skill.command("list")
-@click.option("--tag", "tag", default=None, help="按 tag 过滤。")
+@click.option("--tag", "tag", default=None, help="Filter by tag.")
 def skill_list(tag: str | None) -> None:
     skills = sk_mod.load_all_skills()
     if tag:
         skills = [s for s in skills if tag in s.tags]
     if not skills:
-        click.echo("(无 skill)")
+        click.echo("(no skills)")
         return
     for s in skills:
         click.echo(f"- {s.name}  tags={s.tags}  when={s.when}")
@@ -33,17 +33,17 @@ def skill_list(tag: str | None) -> None:
 
 @skill.command("save")
 @click.argument("name", type=str)
-@click.option("--tags", "tags", default="", help="逗号分隔的 tags。")
-@click.option("--when", "when", default="", help="什么时候用。")
+@click.option("--tags", "tags", default="", help="Comma-separated tags.")
+@click.option("--when", "when", default="", help="When to use this skill.")
 def skill_save(name: str, tags: str, when: str) -> None:
-    """从 stdin 读取技能内容并保存。"""
+    """Read skill content from stdin and save it."""
     paths.skills_dir().mkdir(parents=True, exist_ok=True)
     path = paths.skills_dir() / f"{name}.md"
     if path.exists():
-        if not click.confirm(f"{path} 已存在,覆盖?", default=False):
+        if not click.confirm(f"{path} already exists. Overwrite?", default=False):
             return
 
-    click.echo("请粘贴技能内容,结束按 Ctrl+Z 然后回车 (Windows) 或 Ctrl+D (Unix):")
+    click.echo("Paste skill content. Finish with Ctrl+Z then Enter on Windows, or Ctrl+D on Unix:")
     body = sys.stdin.read().strip()
     tags_list = [t.strip() for t in tags.split(",") if t.strip()]
 
@@ -54,16 +54,16 @@ def skill_save(name: str, tags: str, when: str) -> None:
         front += f"when: {when}\n"
     front += "---\n\n"
     path.write_text(front + body + "\n", encoding="utf-8")
-    click.echo(f"已保存: {path}")
+    click.echo(f"Saved: {path}")
 
 
 @skill.command("edit")
 @click.argument("name", type=str)
 def skill_edit(name: str) -> None:
-    """用 $EDITOR (或 notepad) 打开 skill。"""
+    """Open a skill with $EDITOR, or notepad on Windows."""
     path = paths.skills_dir() / f"{name}.md"
     if not path.exists():
-        click.echo(f"找不到 skill: {name}")
+        click.echo(f"Skill not found: {name}")
         sys.exit(1)
     editor = os.environ.get("EDITOR") or ("notepad" if os.name == "nt" else "vi")
     subprocess.run([editor, str(path)])
@@ -72,10 +72,10 @@ def skill_edit(name: str) -> None:
 @skill.command("use")
 @click.argument("name", type=str)
 def skill_use(name: str) -> None:
-    """标记某 skill 在本项目下一次启动时强制注入。"""
+    """Force a skill to be injected the next time this project starts."""
     project_dir = Path.cwd()
     if not (project_dir / ".cohub").exists():
-        click.echo("当前目录没有 .cohub/,请先 cohub init。")
+        click.echo("No .cohub/ directory found. Run cohub init first.")
         sys.exit(1)
     meta = proj.read_meta(project_dir)
     skills_section = meta.get("skills") or {}
@@ -85,4 +85,4 @@ def skill_use(name: str) -> None:
     skills_section["force"] = force
     meta["skills"] = skills_section
     proj.write_meta(project_dir, meta)
-    click.echo(f"已标记 force 注入: {name}")
+    click.echo(f"Marked for forced injection: {name}")

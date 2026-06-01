@@ -1,4 +1,4 @@
-"""测试 claude adapter 的 build_command + transcript 解析。"""
+"""Test Claude adapter command building and transcript parsing."""
 from __future__ import annotations
 
 import json
@@ -23,26 +23,22 @@ def test_build_command_empty_prompt_skips_flag() -> None:
 def test_parse_transcript_extracts_user_and_assistant(tmp_path: Path) -> None:
     p = tmp_path / "fake.jsonl"
     lines = [
-        # 非对话事件应被忽略
         {"type": "permission-mode"},
-        # user 消息(content 是 str)
         {
             "type": "user",
-            "message": {"role": "user", "content": "你好"},
+            "message": {"role": "user", "content": "hello"},
             "cwd": str(tmp_path),
         },
-        # assistant 消息(content 是 list)
         {
             "type": "assistant",
             "message": {
                 "role": "assistant",
                 "content": [
-                    {"type": "text", "text": "你好,我是 Claude"},
+                    {"type": "text", "text": "hello, I am Claude"},
                     {"type": "tool_use", "name": "Read"},
                 ],
             },
         },
-        # 另一条 user
         {
             "type": "user",
             "message": {
@@ -55,26 +51,23 @@ def test_parse_transcript_extracts_user_and_assistant(tmp_path: Path) -> None:
 
     parsed = claude_adapter.parse_transcript(p)
     assert parsed is not None
-    assert len(parsed) >= 2  # 至少两条对话内容
+    assert len(parsed) >= 2
     roles = [m["role"] for m in parsed]
     assert "user" in roles
     assert "assistant" in roles
-    # 检查文本提取
     blob = "\n".join(m["content"] for m in parsed)
-    assert "你好" in blob
+    assert "hello" in blob
     assert "Claude" in blob
 
 
 def test_parse_transcript_broken_file_returns_none(tmp_path: Path) -> None:
     p = tmp_path / "broken.jsonl"
     p.write_text("not json\nalso not json\n", encoding="utf-8")
-    # 全部非 JSON,parsed 为空 list → 函数返回 None
     parsed = claude_adapter.parse_transcript(p)
     assert parsed is None
 
 
 def test_find_latest_transcript_matches_cwd(tmp_path: Path, monkeypatch) -> None:
-    # 准备假 ~/.claude/projects 目录
     fake_home = tmp_path / "home"
     fake_projects = fake_home / ".claude" / "projects" / "X--proj"
     fake_projects.mkdir(parents=True)
@@ -82,14 +75,12 @@ def test_find_latest_transcript_matches_cwd(tmp_path: Path, monkeypatch) -> None
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
 
-    # 一个匹配 cwd 的 jsonl
     jl = fake_projects / "abc.jsonl"
     jl.write_text(
         json.dumps({"type": "user", "cwd": str(project_dir), "message": {"role": "user", "content": "hi"}}) + "\n",
         encoding="utf-8",
     )
 
-    # 一个不匹配 cwd 的
     jl2 = fake_projects / "def.jsonl"
     jl2.write_text(
         json.dumps({"type": "user", "cwd": "C:/other", "message": {"role": "user", "content": "x"}}) + "\n",

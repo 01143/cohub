@@ -1,10 +1,10 @@
-"""cohub CLI 主入口 (click)。"""
+"""cohub CLI entrypoint."""
 from __future__ import annotations
 
 import io
 import sys
 
-# Windows 上默认 stdio codec 是 GBK / cp936,会污染中文输入。强制 UTF-8。
+# Windows may default stdio to GBK/cp936. Force UTF-8 for stable text IO.
 def _force_utf8_stdio() -> None:
     for stream_name in ("stdin", "stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
@@ -13,7 +13,7 @@ def _force_utf8_stdio() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")  # py3.7+
         except Exception:
-            # Fallback: 包一层 TextIOWrapper
+            # Fallback: wrap with TextIOWrapper.
             try:
                 buffer = getattr(stream, "buffer", None)
                 if buffer is not None:
@@ -38,10 +38,10 @@ from .commands import (
 )
 
 
-@click.group(help="cohub —— 本地多 CLI Agent 工作流协调工具。")
+@click.group(help="cohub - local workflow coordination for multiple CLI agents.")
 @click.version_option(package_name="cohub")
 def cli() -> None:
-    """根命令组,具体功能见各子命令。"""
+    """Root command group."""
 
 
 cli.add_command(cmd_init.init)

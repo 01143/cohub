@@ -1,4 +1,4 @@
-"""cohub status —— 美化打印 active.md。"""
+"""cohub status - display active.md."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,19 +10,19 @@ from ..core import project as proj
 
 @click.command()
 def status() -> None:
-    """显示当前项目的活跃会话。"""
+    """Show active sessions for the current project."""
     project_dir = Path.cwd()
     cohub_dir = project_dir / ".cohub"
     if not cohub_dir.exists():
-        click.echo("当前目录没有 .cohub/,请先 cohub init。")
+        click.echo("No .cohub/ directory found. Run cohub init first.")
         return
 
     entries = proj.read_active_entries(project_dir)
     if not entries:
-        click.echo("当前无活跃会话。")
+        click.echo("No active sessions.")
         return
 
-    click.echo("活跃会话:")
+    click.echo("Active sessions:")
     for e in entries:
         marker = " (stale)" if e.is_stale() else ""
-        click.echo(f"  [{e.session_id}] {e.cli} PID={e.pid} 启动={e.started} 在做={e.doing} 心跳={e.heartbeat}{marker}")
+        click.echo(f"  [{e.session_id}] {e.cli} PID={e.pid} started={e.started} doing={e.doing} heartbeat={e.heartbeat}{marker}")
