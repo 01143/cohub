@@ -9,6 +9,16 @@ Local workflow coordination for multiple CLI agents, including Claude Code and C
 - Cross-platform design: works on Windows, macOS, and Linux; currently tested on Windows 11 with PowerShell.
 - Personal workflow first: designed for practical multi-window agent work without heavyweight orchestration.
 
+## Maintainer Workflows
+
+`cohub` is built for maintainers who work across multiple terminal sessions, editors, and coding agents:
+
+- Resume work with an explicit handoff instead of reconstructing context from memory.
+- Keep active agent sessions visible through a lightweight status board.
+- Create semantic Git snapshots before risky changes.
+- Reuse project-specific skills without copying prompts between tools.
+- Keep coordination state local and auditable in plain Markdown and YAML files.
+
 ## Installation
 
 ```powershell
@@ -123,6 +133,12 @@ project/
 - The Codex adapter is still a placeholder.
 - Automatic skill extraction from sessions is not implemented.
 - Active-session status is intentionally lightweight and does not use strict file locking.
+
+## Contributing
+
+Issues and pull requests are welcome. Useful areas include additional CLI adapters, safer snapshot workflows, cross-platform testing, and better maintainer automation around handoff summaries, review notes, and release preparation.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and contribution guidelines.
 
 ## Tests
 
